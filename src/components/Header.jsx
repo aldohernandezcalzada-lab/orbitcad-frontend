@@ -1,16 +1,31 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
+import { CAPABILITIES } from '../data/capabilities.js'
 
-const EXAMPLE_PROMPTS = [
-  { name: 'Spur Gear', desc: '20 teeth, module 2', prompt: 'Create spur gear module 2 teeth 20 face width 8' },
-  { name: 'Planetary Gearbox', desc: '4:1 ratio, module 2', prompt: 'Create planetary gearbox module 2 sun 18 planets 3 ring 54 face width 8' },
-  { name: '3-Blade Propeller', desc: '5 inch, NACA 4412', prompt: 'Create 3 blade propeller diameter 127 pitch 127 blade profile naca_4412' },
-  { name: 'Ball Bearing 608', desc: '8mm bore standard', prompt: 'Create bearing 608' },
-  { name: 'Worm Drive', desc: 'Module 2, 40:1 ratio', prompt: 'Create worm drive module 2 worm starts 1 wheel teeth 40 face width 16' },
-  { name: 'Shaft', desc: 'Ø12mm × 80mm', prompt: 'Create shaft diameter 12 length 80' },
+const GALLERY_FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'gears', label: 'Gears', cats: ['gears', 'gear systems'] },
+  { id: 'parts', label: 'Parts', cats: ['power transmission', 'machine elements', 'structures', 'assemblies'] },
+  { id: 'drone', label: 'Drone', cats: ['drone_fpv', 'drone_propv'] },
+  { id: 'robotics', label: 'Robotics', cats: ['robotics_arm'] },
 ]
 
 export default function Header({ projects, activeId, tier, usedSlots, stlCredits, stepCredits, onNewDesign, onSelectProject, onUpgrade, onPromptClick, sidebarOpen, onMenuToggle }) {
+  const [gallerySearch, setGallerySearch] = useState('')
+  const [galleryFilter, setGalleryFilter] = useState('all')
+
+  const visibleCaps = useMemo(() => {
+    const q = gallerySearch.trim().toLowerCase()
+    const filterDef = GALLERY_FILTERS.find(f => f.id === galleryFilter)
+    return CAPABILITIES.filter(cap => {
+      const matchesCat = galleryFilter === 'all' || (filterDef?.cats || []).includes(cap.category)
+      const matchesSearch = !q
+        || cap.displayName.toLowerCase().includes(q)
+        || cap.description.toLowerCase().includes(q)
+      return matchesCat && matchesSearch
+    })
+  }, [gallerySearch, galleryFilter])
+
   return (
     <aside className={`sidebar${sidebarOpen ? ' open' : ''}`}>
       <div className="brand">
@@ -56,26 +71,48 @@ export default function Header({ projects, activeId, tier, usedSlots, stlCredits
       <details className="prompt-gallery">
         <summary>
           <span>What OrbitCAD Can Generate</span>
-          <small>Production, beta &amp; roadmap</small>
+          <small>{CAPABILITIES.length} production parts</small>
         </summary>
         <div className="cap-search-wrap">
-          <input type="search" placeholder="Search capabilities…" autoComplete="off" aria-label="Search capabilities" />
+          <input
+            type="search"
+            placeholder="Search capabilities…"
+            autoComplete="off"
+            aria-label="Search capabilities"
+            value={gallerySearch}
+            onChange={e => setGallerySearch(e.target.value)}
+          />
           <div className="cap-filter-chips">
-            <button className="cap-chip active" type="button">All</button>
-            <button className="cap-chip" type="button">Ready</button>
-            <button className="cap-chip" type="button">Beta</button>
+            {GALLERY_FILTERS.map(f => (
+              <button
+                key={f.id}
+                className={`cap-chip${galleryFilter === f.id ? ' active' : ''}`}
+                type="button"
+                onClick={() => setGalleryFilter(f.id)}
+              >
+                {f.label}
+              </button>
+            ))}
           </div>
         </div>
         <div className="prompt-gallery-grid">
-          {EXAMPLE_PROMPTS.map(ex => (
-            <button key={ex.name} className="prompt-card" type="button" onClick={() => onPromptClick(ex.prompt)}>
+          {visibleCaps.map(cap => (
+            <button
+              key={cap.id}
+              className="prompt-card"
+              type="button"
+              onClick={() => onPromptClick(cap.defaultPrompt)}
+            >
               <div className="prompt-card-head">
-                <strong>{ex.name}</strong>
+                <strong>{cap.displayName}</strong>
                 <span className="capability-status capability-status-production">ready</span>
               </div>
-              <span>{ex.desc}</span>
+              <span>{cap.description}</span>
             </button>
           ))}
+          {visibleCaps.length === 0 && (
+            <p style={{ color: 'var(--muted)', fontSize: 12, margin: 0 }}>No results.</p>
+          )}
         </div>
       </details>
 
