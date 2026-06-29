@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 
 const CAPABILITIES = [
   { id: 'spur', name: 'Spur Gear', cat: 'gears', icon: '⚙️', desc: 'Straight-tooth gear for parallel shafts.', prompt: 'Create spur gear module 2 teeth 20 face width 8' },
@@ -26,18 +26,37 @@ const FILTERS = [
   { id: 'other', label: 'Other parts' },
 ]
 
+// Task 4 — 300ms debounce hook
+function useDebounce(value, delay = 300) {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(t)
+  }, [value, delay])
+  return debounced
+}
+
 export default function DiscoveryPanel({ onClose, onSelect }) {
   const [filter, setFilter] = useState('all')
-  const [search, setSearch] = useState('')
+  const [searchRaw, setSearchRaw] = useState('')
+  const search = useDebounce(searchRaw, 300)
 
+  // Task 4 — memoized filtered list
   const visible = useMemo(() => {
+    const q = search.toLowerCase()
     return CAPABILITIES.filter(c => {
       const matchesCat = filter === 'all' || c.cat === filter
-      const q = search.toLowerCase()
       const matchesSearch = !q || c.name.toLowerCase().includes(q) || c.desc.toLowerCase().includes(q)
       return matchesCat && matchesSearch
     })
   }, [filter, search])
+
+  // Close on Escape
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [onClose])
 
   return (
     <div id="discoveryOverlay" role="dialog" aria-modal="true" aria-label="What can OrbitCAD make?">
@@ -49,10 +68,11 @@ export default function DiscoveryPanel({ onClose, onSelect }) {
       <div className="discovery-filter-bar">
         <input
           type="search"
-          placeholder="Search…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{ padding: '6px 12px', borderRadius: 20, border: '1px solid #242B36', background: '#0d1117', color: '#f1f5f9', fontSize: 13, outline: 'none' }}
+          placeholder="Search capabilities…"
+          value={searchRaw}
+          onChange={e => setSearchRaw(e.target.value)}
+          autoFocus
+          style={{ padding: '6px 12px', borderRadius: 20, border: '1px solid #242B36', background: '#0d1117', color: '#f1f5f9', fontSize: 13, outline: 'none', minWidth: 160 }}
         />
         {FILTERS.map(f => (
           <button
@@ -72,7 +92,7 @@ export default function DiscoveryPanel({ onClose, onSelect }) {
             key={cap.id}
             className="discovery-card"
             type="button"
-            onClick={() => { onSelect(cap.prompt); onClose(); }}
+            onClick={() => { onSelect(cap.prompt); onClose() }}
             style={{ border: 'none', width: '100%', textAlign: 'left' }}
           >
             <div className="dc-icon">{cap.icon}</div>
@@ -81,7 +101,7 @@ export default function DiscoveryPanel({ onClose, onSelect }) {
           </button>
         ))}
         {visible.length === 0 && (
-          <p style={{ color: '#9ca3af', fontSize: 13, gridColumn: '1/-1' }}>No capabilities match.</p>
+          <p style={{ color: '#9ca3af', fontSize: 13, gridColumn: '1/-1', margin: 0 }}>No capabilities match your search.</p>
         )}
       </div>
     </div>

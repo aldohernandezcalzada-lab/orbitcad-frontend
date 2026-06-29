@@ -1,5 +1,13 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import ErrorMessage from './ErrorMessage.jsx'
+import { client } from '../api/client.js'
+
+// Task 6.4 — engineering keyword check
+const ENGINEERING_RE = /\b(gear|spur|helical|bevel|planetary|worm|harmonic|cycloidal|hypoid|herringbone|differential|sprocket|pulley|coupling|bearing|shaft|keyway|bushing|housing|retaining|propeller|prop|blade|hex|standoff|flange|bracket|actuator|screw|thread|fastener|beam|rod|tube|cylinder|module|teeth|diameter|length|pitch|width|bore|radius|tooth|face|helix|pressure|plate|arm|link|joint|gripper|mount|rack|pinion|drive|gearbox|spindle|bushing|collar|sleeve|washer|spacer)\b|[0-9]+\s*(mm|cm|inch|in\b)|m[0-9]|t[0-9]{1,3}/i
+
+function isEngineeringPrompt(text) {
+  return ENGINEERING_RE.test(text.trim())
+}
 
 const EXAMPLES = {
   gears: [
@@ -10,7 +18,7 @@ const EXAMPLES = {
   ],
   propellers: [
     { label: '3-blade prop 5"', desc: 'NACA 4412 airfoil', prompt: 'Create 3 blade propeller diameter 127 pitch 127 blade profile naca_4412' },
-    { label: '2-blade prop 8"', desc: 'High pitch, wood', prompt: 'Create 2 blade propeller diameter 200 pitch 150' },
+    { label: '2-blade prop 8"', desc: 'High pitch', prompt: 'Create 2 blade propeller diameter 200 pitch 150' },
   ],
   bearings: [
     { label: 'Bearing 608', desc: '8mm bore standard', prompt: 'Create bearing 608' },
@@ -38,25 +46,36 @@ const EXAMPLES = {
 
 const TABS = ['gears', 'propellers', 'bearings', 'shafts', 'drives', 'advanced']
 
-export default function GeneratorPanel({ prompt, setPrompt, onGenerate, onUndo, onSave, onOpenDiscovery, onOpenGuided, loading, error, onDismissError }) {
+export default function GeneratorPanel({
+  prompt, setPrompt,
+  onGenerate, onUndo, onSave,
+  onOpenDiscovery, onOpenGuided,
+  loading, error, errorCode,
+  onDismissError,
+}) {
   const [activeTab, setActiveTab] = useState('gears')
   const [promoCode, setPromoCode] = useState('')
   const [promoMsg, setPromoMsg] = useState('')
+  const [promoLoading, setPromoLoading] = useState(false)
   const [showBanner, setShowBanner] = useState(true)
 
+  // Task 6.4 — pre-flight check surfaces inline hint, not a hard block
+  const showEngHint = prompt.trim().length > 10 && !isEngineeringPrompt(prompt)
+
+  const currentExamples = useMemo(() => EXAMPLES[activeTab] || [], [activeTab])
+
   async function handleRedeem() {
-    if (!promoCode.trim()) return
+    const code = promoCode.trim()
+    if (!code || promoLoading) return
+    setPromoLoading(true)
+    setPromoMsg('')
     try {
-      const res = await fetch('/api/license/redeem', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: promoCode.trim() }),
-      })
-      const data = await res.json()
-      setPromoMsg(data.message || (res.ok ? 'Code applied!' : 'Invalid code.'))
-    } catch {
-      setPromoMsg('Network error. Try again.')
+      const data = await client.redeemCode(code)
+      setPromoMsg(data.message || 'Code applied! Your credits have been added.')
+    } catch (err) {
+      setPromoMsg(err.message || 'Invalid code. Check for typos and try again.')
+    } finally {
+      setPromoLoading(false)
     }
   }
 
@@ -81,8 +100,20 @@ export default function GeneratorPanel({ prompt, setPrompt, onGenerate, onUndo, 
         value={prompt}
         onChange={e => setPrompt(e.target.value)}
         placeholder={'Examples:\n• 3 blade drone propeller 5 inch\n• Spur gear 24 teeth module 2\n• Bearing 608\n• Shaft diameter 20 length 100\n• Planetary gearbox sun 18 planet 18 ring 54'}
-        onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); onGenerate(); } }}
+        onKeyDown={e => {
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault()
+            onGenerate()
+          }
+        }}
       />
+
+      {/* Task 6.4 — non-engineering prompt hint */}
+      {showEngHint && (
+        <p style={{ fontSize: 12, color: 'var(--amber)', margin: '4px 0 0', lineHeight: 1.4 }}>
+          Try describing a mechanical part — for example, &ldquo;a 6-tooth spur gear&rdquo; or &ldquo;a 30mm hex standoff&rdquo;.
+        </p>
+      )}
 
       <div className="example-section">
         <div className="example-cat-tabs" role="tablist" aria-label="Example categories">
@@ -100,7 +131,7 @@ export default function GeneratorPanel({ prompt, setPrompt, onGenerate, onUndo, 
           ))}
         </div>
         <div className="plain-examples-scroll">
-          {(EXAMPLES[activeTab] || []).map(ex => (
+          {currentExamples.map(ex => (
             <button
               key={ex.label}
               className="plain-example-card"
@@ -126,8 +157,14 @@ export default function GeneratorPanel({ prompt, setPrompt, onGenerate, onUndo, 
           style={{ fontSize: 18, padding: '14px 28px' }}
           onClick={onGenerate}
           disabled={loading}
+          aria-busy={loading}
         >
-          {loading ? '⏳ Generating...' : '⚙️ Generate / Refine'}
+          {loading ? (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="spinner" aria-hidden="true" />
+              Generating…
+            </span>
+          ) : '⚙️ Generate / Refine'}
         </button>
         <button className="ghost" onClick={onUndo} disabled={loading}>Undo</button>
         <button className="ghost" onClick={onSave} disabled={loading}>Save</button>
@@ -141,15 +178,32 @@ export default function GeneratorPanel({ prompt, setPrompt, onGenerate, onUndo, 
             placeholder="Enter code e.g. TESTER-ABC123"
             value={promoCode}
             onChange={e => setPromoCode(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleRedeem()}
             style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: '1px solid #1e3a5f', background: '#111827', color: '#f9fafb', fontSize: 14, outline: 'none' }}
           />
-          <button className="primary" style={{ whiteSpace: 'nowrap', padding: '10px 16px' }} onClick={handleRedeem}>Redeem</button>
+          <button
+            className="primary"
+            style={{ whiteSpace: 'nowrap', padding: '10px 16px' }}
+            onClick={handleRedeem}
+            disabled={promoLoading}
+          >
+            {promoLoading ? '…' : 'Redeem'}
+          </button>
         </div>
-        {promoMsg && <p style={{ fontSize: 13, margin: '6px 0 0', color: '#9ca3af' }}>{promoMsg}</p>}
+        {promoMsg && (
+          <p style={{ fontSize: 13, margin: '6px 0 0', color: promoMsg.includes('applied') ? 'var(--ok)' : '#9ca3af' }}>
+            {promoMsg}
+          </p>
+        )}
       </div>
 
       <h3>Design checks</h3>
-      <ErrorMessage message={error} onDismiss={onDismissError} />
+      <ErrorMessage
+        message={error}
+        code={errorCode}
+        onDismiss={onDismissError}
+        onOpenDiscovery={onOpenDiscovery}
+      />
       <div id="feedback" className="feedback" />
     </section>
   )

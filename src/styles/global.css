@@ -420,42 +420,87 @@ pre {
 .eng-label { font-size: 11px; color: #888; display: block; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
 .eng-value { font-size: 20px; font-weight: 700; color: #e0e0e0; display: block; }
 
-/* ── Mobile ──────────────────────────────────────────────────────── */
+/* ── Mobile ────────────────────────────��─────────────────────────── */
 .mobile-only { display: none; }
 
-@media (max-width: 900px) {
+/* 768px: main layout collapses to single column */
+@media (max-width: 768px) {
   #app { display: block; }
-  .sidebar { position: fixed; z-index: 5; transform: translateX(-105%); transition: .2s; width: 82vw; }
+  .sidebar { position: fixed; z-index: 5; transform: translateX(-105%); transition: transform .2s; width: 82vw; }
   .sidebar.open { transform: none; }
-  .grid { grid-template-columns: 1fr; }
+  .grid { grid-template-columns: 1fr; padding: 12px; gap: 12px; }
   .mobile-only { display: grid; }
   .topbar { position: sticky; top: 0; z-index: 4; height: auto; min-height: 64px; flex-wrap: wrap; }
-  .title-input { min-width: 180px; font-size: 18px; }
+  .title-input { min-width: 160px; font-size: 18px; }
   .credit-summary { margin-left: auto; }
   canvas { height: 360px; }
   .advanced-output-grid { grid-template-columns: 1fr; }
+  /* Generator panel stacks vertically */
+  .prompt-panel .actions { flex-direction: column; }
+  .prompt-panel .actions button { width: 100%; }
 }
 
-@media (max-width: 560px) {
-  .grid { padding: 10px; gap: 10px; }
-  .panel { padding: 13px; }
-  .topbar { padding: 10px; }
+/* 480px: narrow phones */
+@media (max-width: 480px) {
+  .grid { padding: 8px; gap: 8px; }
+  .panel { padding: 12px; }
+  .topbar { padding: 8px; }
   .credit-summary { order: 3; width: 100%; justify-content: flex-end; }
-  canvas { height: 300px; }
+  canvas { height: 280px; }
   .plain-examples-scroll { grid-template-columns: 1fr; }
   .guided-options { grid-template-columns: 1fr; }
   .onboarding-examples { grid-template-columns: 1fr; }
   .checkout-actions, .price-grid { grid-template-columns: 1fr; }
-}
-
-@media (max-width: 480px) {
-  .cap-filter-chips, .discovery-filter-bar { display: flex; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 6px; scrollbar-width: none; }
+  .cap-filter-chips, .discovery-filter-bar { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
   .cap-filter-chips::-webkit-scrollbar, .discovery-filter-bar::-webkit-scrollbar { display: none; }
   button, .cap-chip, .guided-opt, .plain-example-card { min-height: 44px; }
   body, #app { overflow-x: hidden; max-width: 100vw; }
 }
 
+/* ── Keyframes ───────────────────────────────────────────────────── */
 @keyframes ocFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* Task 4 — page load fade-in */
+@keyframes ocPageFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+#app { animation: ocPageFadeIn 300ms ease-out both; }
+
+/* Task 4 — 3D viewer entrance */
+@keyframes viewerEntrance {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.model-loaded { animation: viewerEntrance 400ms cubic-bezier(0.16,1,0.3,1) both; }
+
+/* Task 4 — skeleton loader shimmer */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #0f1822 25%, #1a2c3f 50%, #0f1822 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 6px;
+  display: block;
+}
+.skeleton-text  { height: 14px; margin-bottom: 8px; }
+.skeleton-rect  { height: 40px; }
+
+/* Task 4 — loading spinner inside generate button */
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(23,16,7,.4);
+  border-top-color: #171007;
+  border-radius: 50%;
+  display: inline-block;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── Tooltip ─────────────────────────────────────────────────────── */
 [data-tooltip] { position: relative; }
@@ -497,3 +542,44 @@ pre {
 }
 .app-footer a { color: var(--accent); text-decoration: none; }
 .app-footer a:hover { text-decoration: underline; }
+
+/* ── Model status bar (ViewerPanel) ──────────────────────────────── */
+.model-status-bar {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: #0b111b;
+  border: 1px solid rgba(125,184,214,.22);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.model-download-link {
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #16a34a, #15803d);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+  border: 1px solid rgba(255,255,255,.15);
+  transition: opacity .15s;
+}
+.model-download-link:hover { opacity: .85; }
+.model-download-link--step { background: linear-gradient(180deg, #2563eb, #1d4ed8); }
+
+/* Task 4 — hover lift on panels */
+.panel { transition: box-shadow .2s; }
+.panel:hover { box-shadow: 0 20px 64px rgba(0,0,0,.44), inset 0 1px 0 rgba(255,235,186,.08); }
+
+/* Page overlay for /privacy and /terms (always-mounted router) */
+.page-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: var(--bg);
+  overflow-y: auto;
+}
