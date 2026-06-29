@@ -1,4 +1,4 @@
-export const BASE_URL = 'https://orbitcad.app'
+export const BASE_URL = ''
 
 // Task 6.3: map backend error codes to user-friendly messages
 export const ERROR_MESSAGES = {
